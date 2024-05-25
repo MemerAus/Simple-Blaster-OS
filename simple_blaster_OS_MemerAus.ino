@@ -3,8 +3,15 @@
 // Ammo count starts at 50 and counts down with bars; At zero empty click plays until mode change button is pressed for reload
 // Sounds are read from SD card loaded in DFPLayer mini
 
+//Changes made by MemerAus to get this working include:
+//1) commenting out serial.println in the code, as this interfered with the sounds playing reliably. Can be uncommented for any debugging.
+//2) Changed serial ports for the MP3 player to 5,6 as I couldnt get RX/TX to work.
+//3) Added mySerial.begin(9600); and myMP3.begin(mySerial, true); under loop as my MP3 player wouldnt play without them there (you migthnt need to?)
 
-
+//Changes made "just because" 
+// 1) I used a single LED for a DC-17 barrel so changed the number of LEDs to 1 
+// 2) Changed the 'Ammo Count" to have batteries counting down as the bars deplete
+  
 #include <Adafruit_NeoPixel.h>
 // DFPlayer Mini library that seems to work with all of the DFPlayer Minis
 #include <DFPlayerMini_Fast.h>
@@ -12,7 +19,7 @@
 #include <U8g2lib.h>
 #if !defined(UBRR1H)
 #include <SoftwareSerial.h>
-SoftwareSerial mySerial(2, 1); // RX, TX
+SoftwareSerial mySerial(5, 6); // RX, TX
 #endif
 
 #ifdef U8X8_HAVE_HW_SPI
@@ -37,7 +44,7 @@ int modechange = 3;
 
 //Addressable LED data pin D11
 #define PIN 11  //LED Data Pin
-#define NUM_LEDS 9  //Number of LEDs that will be lit
+#define NUM_LEDS 1  //Number of LEDs that will be lit
 
 
 // global variables
@@ -50,7 +57,7 @@ long unsigned int lastPress1;
 long unsigned int lastPress2;
 volatile int buttonFlag1;
 volatile int buttonFlag2;
-int debounceTime = 20;
+int debounceTime = 100;
 int ammo = 50;
 
 DFPlayerMini_Fast myMP3;
@@ -65,8 +72,8 @@ void setup() {
   pinMode(fire, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(fire), ISR_button1, CHANGE);
   attachInterrupt(digitalPinToInterrupt(modechange), ISR_button2, CHANGE);
-  Serial.begin(9600); // dont forget to set your serial monitor speed to whatever is set here
-  Serial.println("Running");
+  //Serial.begin(9600); // dont forget to set your serial monitor speed to whatever is set here
+  //Serial.println("Running");
   strip.begin();
   strip.show();
   u8g2.begin();
@@ -75,16 +82,20 @@ void setup() {
   //DFPlayer Setup
   mySerial.begin(9600);
   myMP3.begin(mySerial, true);
-  Serial.println("Setting volume to max");
+  //Serial.println("Setting volume to max");
   myMP3.volume(30); // Set volume 0 to 30 (max is 30)
-
+//Play initial startup sound
+  //Serial.println("Play startup sound");
+  //Triggers the startup sound to play
+  //Format calls the directory on the SD card 01 and the third track; make sure files are named with 001, 002, 003, etc)
+   myMP3.playFolder(01,3);
   
   // Ammo Count Boxes
   u8g2.setDrawColor(1);
   u8g2.setFontPosTop();
   u8g2.setFontDirection(0);
   u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_inb19_mn);
+  u8g2.setFont(u8g2_font_battery19_tn);
   u8g2.setCursor (2, 2);
   u8g2.print(ammo);
   
@@ -95,16 +106,13 @@ void setup() {
   u8g2.drawBox(2,53,30,17);
   u8g2.drawBox(2,34,30,17);
   u8g2.sendBuffer();
-
-  //Play initial startup sound
-  Serial.println("Play startup sound");
-  //Triggers the startup sound to play
-  //Format calls the directory on the SD card 01 and the third track; make sure files are named with 001, 002, 003, etc)
-  myMP3.playFolder(01, 3);
+  
 }
 
 void loop() {
   //Fire button check loop
+   mySerial.begin(9600); //added here as the sound wouldnt play without it
+   myMP3.begin(mySerial, true); //added here as the sound wouldnt play without it
   u8g3.firstPage(); 
   do {
     int a = random(1, 12);
@@ -112,7 +120,6 @@ void loop() {
     int c = random(1, 12);
     int d = random(1, 12);
     int e = random(70, 90);
-   
     //Draw Scope
     u8g3.drawCircle(32, 15, 15);//Outer Ring
     u8g3.drawCircle(32, 15, 2);//Inner ring
@@ -134,35 +141,42 @@ void loop() {
     u8g3.drawLine(1, 3, b, 3);//bar 2
     u8g3.drawLine(1, 5, c, 5);//bar 3
     u8g3.drawLine(1, 7, d, 7);//bar 4
-    delay(50);
+   
+    
   } while ( u8g3.nextPage() );
   //Debug statements commented out
   //Serial.print("LastButton:");
   //Serial.println(lastButtonState1);
-  if((millis() - lastPress1) > debounceTime && buttonFlag1)
+  //lastPress1 = millis(); - Mark f'ing around 
+  //Serial.println("works to here"); 
+  
+  if(millis() - lastPress1 > debounceTime || buttonFlag1)
   {
+    
     lastPress1 = millis();   //update lastPress                                                     
     if(digitalRead(fire) == 0 && lastButtonState1 == 1)    //if button is pressed and was released last change
     {
-      Serial.println("Fire:");
+   
+    //Serial.println("Fire:");
       count1 = count1 + 1;
       //Serial.println(count1);
+      
       //Blast - subroutine to play blast sound and light
-      if (count2 == 1 && ammo != 0){
-       colorWipe(0xff,0x00,0x00, 2);
-       colorWipe(0x00,0x00,0x00, 2); 
-       myMP3.playFolder(01, 1);
+      if (count2 == 1 && ammo > 0){
+      myMP3.playFolder(01, 1);
+      colorWipe(0xff,0x00,0x00, 2);
+      colorWipe(0x00,0x00,0x00, 2);
       }
       //Stun - Subroutine if in stun mode
-      if (count2 == 2 & ammo != 0){
+      if (count2 == 2 & ammo > 0){
        colorWipe(0x00,0x00,0xff, 2);
        colorWipe(0x00,0x00,0x00, 2); 
-       myMP3.playFolder(01, 2);
+      myMP3.playFolder(01, 2);
       }
       //Empty - Subroutine if empty; Plays empty sound until mode button is pressed for reload
       if (ammo == 0){
-       Serial.println("Empty");
-       myMP3.playFolder(01, 5);
+      //Serial.println("Empty");
+      myMP3.playFolder(01, 5);
       }
 
 
@@ -175,7 +189,7 @@ void loop() {
       {
         ammo = ammo - 1;
         //Five ammo count boxes already drawn
-        Serial.println("50-40");
+        //Serial.println("50-40");
         u8g2.setCursor (2, 2);
         u8g2.print(ammo);
         u8g2.sendBuffer();
@@ -186,13 +200,13 @@ void loop() {
       {
         ammo = ammo - 1;
         //Draw Four Ammo Count Boxes
-        Serial.println("39-30");
+        //Serial.println("39-30");
         u8g2.clearBuffer();
         u8g2.drawBox(2,110,30,17);
         u8g2.drawBox(2,91,30,17);
         u8g2.drawBox(2,72,30,17);
         u8g2.drawBox(2,53,30,17);
-        Serial.println(ammo);
+        //Serial.println(ammo);
         u8g2.setCursor (2, 2);
         u8g2.print(ammo);
         u8g2.sendBuffer();
@@ -202,12 +216,12 @@ void loop() {
       if ((ammo <= 29) && (ammo >= 20)) {
         ammo = ammo - 1;
         //Draw Four Ammo Count Boxes
-        Serial.println("29-20");
+        //Serial.println("29-20");
         u8g2.clearBuffer();
         u8g2.drawBox(2,110,30,17);
         u8g2.drawBox(2,91,30,17);
         u8g2.drawBox(2,72,30,17);
-        Serial.println(ammo);
+        //Serial.println(ammo);
         u8g2.setCursor (2, 2);
         u8g2.print(ammo);
         u8g2.sendBuffer();
@@ -217,11 +231,11 @@ void loop() {
       if ((ammo <= 19) && (ammo >= 10)) {
         ammo = ammo - 1;
         //Draw Four Ammo Count Boxes
-        Serial.println("19-10");
+        //Serial.println("19-10");
         u8g2.clearBuffer();
         u8g2.drawBox(2,110,30,17);
         u8g2.drawBox(2,91,30,17);
-        Serial.println(ammo);
+        //Serial.println(ammo);
         u8g2.setCursor (2, 2);
         u8g2.print(ammo);
         u8g2.sendBuffer();
@@ -233,7 +247,7 @@ void loop() {
         //Draw Four Ammo Count Boxes
         u8g2.clearBuffer();
         u8g2.drawBox(2,110,30,17);
-        Serial.println(ammo);
+        //Serial.println(ammo);
         u8g2.setCursor (2, 2);
         u8g2.print(ammo);
         u8g2.sendBuffer();
@@ -243,7 +257,7 @@ void loop() {
       if ((ammo == 0)) {
         //Draw Four Ammo Count Boxes
         u8g2.clearBuffer();
-        Serial.println(ammo);
+        //Serial.println(ammo);
         u8g2.setCursor (2, 2);
         u8g2.print(ammo);
         u8g2.sendBuffer();
@@ -264,21 +278,21 @@ void loop() {
     lastPress2 = millis();   //update lastPress                                                     
     if(digitalRead(modechange) == 0 && lastButtonState2 == 1)    //if button is pressed and was released last change
     {
-      Serial.println("Mode:");
+      //Serial.println("Mode:");
       //Count2 is used to determin mode 1=kill, 2=stun
       count2 = count2 + 1;
-      Serial.println("Count Increase");
+      //Serial.println("Count Increase");
       if (count2 == 3) {
         count2 = 1;
       }
       //Play sound for mode change
       if (ammo != 0) {
-        myMP3.playFolder(01, 4);
+         myMP3.playFolder(01, 4);
       }
       //Reload Sequence
       if (ammo == 0) {
-        Serial.println("Reload");
-        myMP3.playFolder(01, 3);
+        //Serial.println("Reload");
+         myMP3.playFolder(01, 3);
         ammo = 50;
         //Re-Draw Five Ammo Count Boxes for reload
         u8g2.drawBox(2,110,30,17);
@@ -291,7 +305,6 @@ void loop() {
         u8g2.sendBuffer();
         //Decreases count2 by 1 to prevent mode change on reload
         count2= count2 - 1;
-        delay(1000);
       }
       //Serial.println(count2);
       
