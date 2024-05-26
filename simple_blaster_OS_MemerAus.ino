@@ -147,7 +147,6 @@ void loop() {
   //Debug statements commented out
   //Serial.print("LastButton:");
   //Serial.println(lastButtonState1);
-  //lastPress1 = millis(); - Mark f'ing around 
   //Serial.println("works to here"); 
   
   if(millis() - lastPress1 > debounceTime || buttonFlag1)
